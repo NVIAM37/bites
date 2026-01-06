@@ -5,7 +5,7 @@ import { MessageCircle, X, Send, Bot, User, Minimize2, Maximize2 } from 'lucide-
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ❌ DO NOT KEEP YOUR REAL API KEY
-const API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
 
 

@@ -11,11 +11,11 @@ interface FoodModelProps {
 
 // Placeholder 3D shapes representing food categories
 // TODO: Replace with actual .gltf/.glb models from Poly Pizza or Sketchfab
-export const FoodModel = ({ 
-  color = '#FF6B4A', 
+export const FoodModel = ({
+  color = '#FF6B4A',
   shape = 'burger',
   scale = 1,
-  autoRotate = true 
+  autoRotate = true
 }: FoodModelProps) => {
   const meshRef = useRef<Mesh>(null);
 
@@ -33,29 +33,68 @@ export const FoodModel = ({
           <group ref={meshRef as any} scale={scale}>
             {/* Bottom bun */}
             <mesh position={[0, -0.3, 0]}>
-              <cylinderGeometry args={[1.2, 1.3, 0.3, 32]} />
-              <meshStandardMaterial color="#D4A574" />
+              <cylinderGeometry args={[1.2, 1.3, 0.4, 32]} />
+              <meshStandardMaterial color="#D4A574" roughness={0.7} />
             </mesh>
+
             {/* Patty */}
-            <mesh position={[0, -0.05, 0]}>
-              <cylinderGeometry args={[1.1, 1.1, 0.25, 32]} />
-              <meshStandardMaterial color="#8B4513" />
+            <mesh position={[0, 0, 0]}>
+              <cylinderGeometry args={[1.15, 1.15, 0.35, 32]} />
+              <meshStandardMaterial color="#5D2906" roughness={0.9} />
             </mesh>
+
             {/* Cheese */}
-            <mesh position={[0, 0.1, 0]}>
-              <boxGeometry args={[2, 0.08, 2]} />
-              <meshStandardMaterial color="#FFD700" />
-            </mesh>
+            <group position={[0, 0.2, 0]}>
+              <mesh rotation={[0, 0, 0]}>
+                <boxGeometry args={[2.1, 0.05, 2.1]} />
+                <meshStandardMaterial color="#FFD700" metalness={0.1} roughness={0.3} />
+              </mesh>
+              {/* Cheese drips */}
+              <mesh position={[0.9, -0.1, 0.9]} rotation={[0.2, 0, 0.2]}>
+                <boxGeometry args={[0.3, 0.2, 0.3]} />
+                <meshStandardMaterial color="#FFD700" />
+              </mesh>
+              <mesh position={[-0.9, -0.1, 0.5]} rotation={[-0.2, 0, 0.1]}>
+                <boxGeometry args={[0.3, 0.2, 0.3]} />
+                <meshStandardMaterial color="#FFD700" />
+              </mesh>
+            </group>
+
             {/* Lettuce */}
-            <mesh position={[0, 0.2, 0]}>
-              <cylinderGeometry args={[1.15, 1.15, 0.1, 32]} />
-              <meshStandardMaterial color="#90EE90" />
+            <mesh position={[0, 0.3, 0]} rotation={[0.1, 0.5, 0]}>
+              <cylinderGeometry args={[1.2, 1.2, 0.1, 32]} />
+              <meshStandardMaterial color="#4CAF50" roughness={0.8} />
             </mesh>
+
+            {/* Tomato */}
+            <mesh position={[0, 0.4, 0]}>
+              <cylinderGeometry args={[1.0, 1.0, 0.1, 32]} />
+              <meshStandardMaterial color="#F44336" roughness={0.5} />
+            </mesh>
+
             {/* Top bun */}
-            <mesh position={[0, 0.5, 0]}>
-              <sphereGeometry args={[1.2, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-              <meshStandardMaterial color="#D4A574" />
-            </mesh>
+            <group position={[0, 0.5, 0]}>
+              <mesh>
+                <sphereGeometry args={[1.2, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                <meshStandardMaterial color="#D4A574" roughness={0.7} />
+              </mesh>
+              {/* Sesame Seeds */}
+              {[...Array(20)].map((_, i) => (
+                <mesh
+                  key={i}
+                  position={[
+                    Math.cos(i * 1.5) * (0.3 + Math.random() * 0.5),
+                    0.5 + Math.random() * 0.5,
+                    Math.sin(i * 1.5) * (0.3 + Math.random() * 0.5)
+                  ]}
+                  rotation={[Math.random(), Math.random(), Math.random()]}
+                  scale={[1, 0.5, 2]}
+                >
+                  <sphereGeometry args={[0.03, 8, 8]} />
+                  <meshStandardMaterial color="#F5DEB3" />
+                </mesh>
+              ))}
+            </group>
           </group>
         );
 
