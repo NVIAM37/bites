@@ -79,21 +79,6 @@ const CategoryCard = ({ category, index }: { category: Category, index: number }
             <div className={`absolute inset-0 bg-gradient-to-tr ${category.gradient} opacity-0 group-hover:opacity-10 blur-3xl rounded-full transition-opacity duration-500`} />
           </div>
 
-          {/* Content */}
-          <div className="p-6 relative z-10 bg-background/40 backdrop-blur-md border-t border-white/10" style={{ transform: "translateZ(50px)" }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-4xl filter drop-shadow-md">{category.icon}</span>
-              <motion.div
-                whileHover={{ x: 5, backgroundColor: "var(--primary)" }}
-                className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 text-foreground group-hover:text-primary-foreground transition-all duration-300"
-              >
-                <ArrowRight className="w-6 h-6" />
-              </motion.div>
-            </div>
-            <h3 className="font-display text-2xl font-black mb-2 tracking-tight">{category.name}</h3>
-            <p className="text-sm text-muted-foreground font-medium leading-relaxed line-clamp-2">{category.description}</p>
-          </div>
-
           {/* Interactive Border */}
           <div className="absolute inset-0 border border-white/0 group-hover:border-white/20 transition-colors duration-500 rounded-3xl" />
         </motion.div>

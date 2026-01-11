@@ -3,11 +3,11 @@ import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { MessageCircle, X, Send, Bot, User, Minimize2, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { systemPrompt } from '../data/restaurantData';
 
-// ❌ DO NOT KEEP YOUR REAL API KEY
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-
-
+// Get API keys from environment variables
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
@@ -19,12 +19,17 @@ export const AIAgent = () => {
     const [messages, setMessages] = useState<Message[]>([
         {
             role: 'system',
-            content: "You are the helpful AI assistant for 'Bites', a premium restaurant known for its culinary excellence, fresh herbs, and pure seasoning. Your goal is to assist customers with menu inquiries, booking information, and general questions about the restaurant. Be polite, concise, and stay in character as a restaurant concierge. Do not mention that you are an AI if possible, just say you are the digital concierge."
+            content: systemPrompt
+        },
+        {
+            role: 'assistant',
+            content: 'Welcome to Bites Restaurant. How may I assist you today? I am here to help with menu recommendations, reservations, catering services, or any questions about our dining experience.'
         }
     ]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
+    const [hasError, setHasError] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -42,44 +47,107 @@ export const AIAgent = () => {
         setMessages(prev => [...prev, userMessage]);
         setInputValue('');
         setIsLoading(true);
+        setHasError(false);
 
         try {
-            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${GROQ_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [...messages, userMessage].map(({ role, content }) => ({ role, content })),
-                    temperature: 0.7,
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('API Error:', errorData);
-                throw new Error(`API Error: ${response.status}`);
+            // Primary: Gemini API, Fallback: Groq API
+            if (GEMINI_API_KEY) {
+                await sendMessageToGemini([...messages, userMessage]);
+            } else {
+                await sendMessageToGroq([...messages, userMessage]);
             }
-
-            const data = await response.json();
-            const assistantMessage: Message = {
-                role: 'assistant',
-                content: data.choices[0].message.content
-            };
-
-            setMessages(prev => [...prev, assistantMessage]);
         } catch (error) {
-            console.error('Error fetching chat response:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            console.error('Error fetching chat response:', errorMessage);
+            
             toast.error("Unable to connect to concierge. Please try again later.");
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment."
             }]);
+            setHasError(true);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const sendMessageToGemini = async (messageList: Message[]) => {
+        // Filter out system messages for the API call, but keep them for context
+        const conversationMessages = messageList.filter(msg => msg.role !== 'system');
+        
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: conversationMessages.map(msg => ({
+                        role: msg.role === 'assistant' ? 'model' : msg.role,
+                        parts: [{ text: msg.content }]
+                    })),
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 1024,
+                    }
+                })
+            }
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+            console.error('Gemini API Error:', errorData);
+            throw new Error(`API Error: ${response.status} - ${errorData?.error?.message || 'Failed to get response'}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            throw new Error('Invalid response format from Gemini API');
+        }
+        
+        const assistantMessage: Message = {
+            role: 'assistant',
+            content: data.candidates[0].content.parts[0].text
+        };
+
+        setMessages(prev => [...prev, assistantMessage]);
+    };
+
+    const sendMessageToGroq = async (messageList: Message[]) => {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: messageList.map(({ role, content }) => ({ role, content })),
+                temperature: 0.7,
+                max_tokens: 1024,
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+            console.error('Groq API Error:', errorData);
+            throw new Error(`API Error: ${response.status} - ${errorData?.error?.message || 'Failed to get response'}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.choices?.[0]?.message?.content) {
+            throw new Error('Invalid response format from Groq API');
+        }
+        
+        const assistantMessage: Message = {
+            role: 'assistant',
+            content: data.choices[0].message.content
+        };
+
+        setMessages(prev => [...prev, assistantMessage]);
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -134,37 +202,39 @@ export const AIAgent = () => {
                                 <>
                                     {/* Messages */}
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-background/50 to-background">
-                                        {messages.filter(m => m.role !== 'system').map((msg, idx) => (
-                                            <div
-                                                key={idx}
-                                                className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-                                            >
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                                                    {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
-                                                </div>
+                                        <>
+                                            {messages.filter(m => m.role !== 'system').map((msg, idx) => (
                                                 <div
-                                                    className={`max-w-[80%] rounded-2xl p-3 text-sm ${msg.role === 'user'
-                                                        ? 'bg-primary text-primary-foreground rounded-tr-none'
-                                                        : 'bg-muted/80 text-foreground rounded-tl-none'
-                                                        }`}
+                                                    key={idx}
+                                                    className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
                                                 >
-                                                    {msg.content}
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                                                        {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+                                                    </div>
+                                                    <div
+                                                        className={`max-w-[80%] rounded-2xl p-3 text-sm ${msg.role === 'user'
+                                                            ? 'bg-primary text-primary-foreground rounded-tr-none'
+                                                            : 'bg-muted/80 text-foreground rounded-tl-none'
+                                                            }`}
+                                                    >
+                                                        {msg.content}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                        {isLoading && (
-                                            <div className="flex gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center flex-shrink-0">
-                                                    <Bot className="w-5 h-5" />
-                                                </div>
-                                                <div className="bg-muted/50 rounded-2xl rounded-tl-none p-4 flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                                    <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                                    <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce" />
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div ref={chatEndRef} />
+                                            ))}
+                                            {isLoading && (
+                                                <div className="flex gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center flex-shrink-0">
+                                                        <Bot className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="bg-muted/50 rounded-2xl rounded-tl-none p-4 flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                        <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                        <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce" />
+                                                    </div>
+                                                    </div>
+                                                )}
+                                                <div ref={chatEndRef} />
+                                        </>
                                     </div>
 
                                     {/* Input */}
